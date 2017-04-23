@@ -8,8 +8,8 @@ The sofware:
 
 # Authors
 
-  - Vincenzo Santopietro <<vincenzo.santopietro@uniparthenope.it>>
-  - Francesco Battistone <<francesco.battistone@uniparthenope.it>>
+  - Vincenzo Santopietro <<vincenzosantopietro@linux.com>>
+  - Francesco Battistone <<battistone.francesco@gmail.com>>
 
 ### Installation
 The software requires [OpenCV](http://opencv.org/opencv-v2-4-2-released.html) v2.4.x to run.
