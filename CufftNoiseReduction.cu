@@ -18,137 +18,78 @@ using namespace cv;
 
 #define DEBUG
 
-enum GPU_HCS_Error
-{
-    GPU_HCS_SUCCESS,
-    GPU_HCS_ERROR_ALLOCMEM,
-    GPU_HCS_ERROR_FREEMEM,
-    GPU_HCS_ERROR_CPYMEM,
-    GPU_HCS_ERROR_TIME,
-    GPU_HCS_ERROR_PLAN,
-    GPU_HCS_ERROR_FFT
-};
  
 __global__ void kernel_fftshift2D(cufftDoubleComplex *IM, int im_height, int im_width);
-__global__ void kernel_creat_kernel(cufftDoubleReal *IM, int im_height, int im_width);
-__global__ void prodottoMatriciCompPerCompGPU(cufftDoubleComplex *in1, cufftDoubleComplex *in2,cufftDoubleComplex *out, int row, int col);
-__global__ void zeroPadding(double* F, cufftDoubleReal* FP, int newCols, int newRows, int oldCols, int oldRows); 
+__global__ void componentwiseMatrixMul(cufftDoubleComplex *in1, cufftDoubleComplex *in2,cufftDoubleComplex *out, int row, int col);
+__global__ void zeroPadding(cufftDoubleComplex* F, cufftDoubleComplex* FP, int newCols, int newRows, int oldCols, int oldRows); 
 
 
-__global__ void zeroPadding(double* F, cufftDoubleReal* FP, int newCols, int newRows, int oldCols, int oldRows)
+__global__ void zeroPadding(cufftDoubleComplex* F, cufftDoubleComplex* FP, int newCols, int newRows, int oldCols, int oldRows)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
     int ind = idx*newCols + idy;
+    
     if(idx < newRows && idy < newCols)
     {       
         if(idx <oldRows && idy < oldCols)
         {
-            FP[ind] = F[idx*oldCols+idy];
+            FP[ind].x = F[idx*oldCols+idy].x;
         }
         else if(idx>oldRows || idy>oldCols)
         {
-            FP[ind]=0;
+            FP[ind].x=0;
         }
     }
 }
 
 
-__global__ void prodottoMatriciCompPerCompGPU(cufftDoubleComplex *in1, cufftDoubleComplex *in2,cufftDoubleComplex *out,int row, int col)
+__global__ void componentwiseMatrixMul(cufftDoubleComplex *in1, cufftDoubleComplex *in2,cufftDoubleComplex *out,int row, int col)
 {
     int indexRow=threadIdx.x + blockIdx.x*blockDim.x; 
     int indexCol=threadIdx.y + blockIdx.y*blockDim.y; 
     if(indexRow<row && indexCol<col)
-    {   out[indexRow*col+indexCol].x=in1[indexRow*col+indexCol].x*in2[indexRow*col+indexCol].x;
-        out[indexRow*col+indexCol].y=in1[indexRow*col+indexCol].y*in2[indexRow*col+indexCol].y;
+    {   
+        out[indexRow*col+indexCol].x = in1[indexRow*col+indexCol].x*in2[indexRow*col+indexCol].x;
+        out[indexRow*col+indexCol].y = in1[indexRow*col+indexCol].y*in2[indexRow*col+indexCol].y;
     }
 }
 
 
-__global__ void kernel_fftshift2D(cufftDoubleComplex *IM, int im_height, int im_width)
+__global__ void kernel_fftshift2D(cufftDoubleComplex *IM, int imH, int imW)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
-    int ind = idy*im_width + idx;
+    int ind = idy*imW + idx;
     int x, y, indshift;
     cufftDoubleComplex v;
-     
-     
-    if(idx < im_width && idy < im_height/2)
+
+
+    if(idx < imW && idy < imH/2)
     {
-        if(idx<im_width/2 && idy<im_height/2)
+        if(idx<imW/2 && idy<imH/2)
         {
-            x=idx+im_width/2;
-            y=idy+im_height/2;
+            x=idx+imW/2;
+            y=idy+imH/2;
         }
-        else if(idx>=im_width/2 && idy<im_height/2)
+        else if(idx>=imW/2 && idy<imH/2)
         {
-            x=idx-im_width/2;
-            y=idy+im_height/2;
+            x=idx-imW/2;
+            y=idy+imH/2;
         }
-     
-        indshift = y*im_width+x;
-        v.x = (double)IM[ind].x;
-        v.y = (double)IM[ind].y;
-     
+
+        indshift = y*imW+x;
+        v.x = IM[ind].x;
+        v.y = IM[ind].y;
+
         IM[ind].x = IM[indshift].x;
         IM[ind].y = IM[indshift].y;
-     
+
         IM[indshift].x = v.x;
         IM[indshift].y = v.y;
     }
 }
- 
 
-__global__ void kernel_shift2D(cufftDoubleReal *IM, int im_height, int im_width)
-{
-    int idx = blockIdx.x*blockDim.x + threadIdx.x;
-    int idy = blockIdx.y*blockDim.y + threadIdx.y;
-    int ind = idy*im_width + idx;
-    int x, y, indshift;
-    cufftDoubleReal v;
-
-
-    if(idx < im_width && idy < im_height/2)
-    {
-        if(idx<im_width/2 && idy<im_height/2)
-        {
-            x=idx+im_width/2;
-            y=idy+im_height/2;
-        }
-        else if(idx>=im_width/2 && idy<im_height/2)
-        {
-            x=idx-im_width/2;
-            y=idy+im_height/2;
-        }
-
-        indshift = y*im_width+x;
-        v = (double) IM[ind];
-        IM[ind] = IM[indshift];
-        IM[indshift]= v;
-    }
-}
-
-
-__global__ void kernel_creat_kernel(cufftDoubleReal *IK, int im_height, int im_width)
-{
-   int idx = blockIdx.x*blockDim.x + threadIdx.x;
-    int idy = blockIdx.y*blockDim.y + threadIdx.y;
-    int ind = idy*im_width + idx;
-    double u, v, rad;
-    double sigma1 = 1.5;
-     
-    if(idx < im_height && idy < im_width)
-    {
-        u=(idx-im_height/2)*(idx-im_height/2);
-        v=(idy-im_width/2)*(idy-im_width/2);
-        rad=u+v;
-   
-        IK[ind] = exp(-rad/(2*sigma1*sigma1));
-       
-    }
-
-}
 
 /*
  *  Image Convolution with CUFFT
@@ -158,14 +99,13 @@ int main(int argc, char* argv[])
 {
     cufftDoubleComplex *IM;
     cufftDoubleComplex *FK;
-    cufftDoubleReal *IK;
-    cufftHandle planD2Z, planZ2D, plan2D2Z;
+    cufftDoubleComplex *IK;
+    cufftHandle planZ2Z, planIZ2Z, plan2Z2Z;
     cufftResult cuError;      
-    GPU_HCS_Error reserr = GPU_HCS_SUCCESS;
     StopWatchInterface *timer=NULL;
     
     int im_height, im_width, dimK = 5, num_threads, nDevices;
-    double *im_d,*im_K;
+    cufftDoubleComplex *im_d,*im_K;
     float gpuTime;
     
     char * output_file_path, *image_path, *kernel_path;
@@ -229,16 +169,8 @@ int main(int argc, char* argv[])
         nbBlocsH++;
     dim3 dimGrid(nbBlocsW, nbBlocsH);
     
-    dim3 dimBlockK(num_threads, num_threads);
-    int nbBlocsWK = dimK/num_threads;
-    if((dimK%num_threads) != 0)
-        nbBlocsWK++;
-    int nbBlocsHK = dimK/num_threads;
-    if((dimK%num_threads) != 0)
-        nbBlocsHK++;
-    dim3 dimGridK(nbBlocsHK, nbBlocsWK);
-    
-    /* lettura dell'immagine e del kernel*/
+
+    // Opening kernel file and output file
     FILE *fd2,*fd1;
     if((fd2=fopen(kernel_path,"r"))==NULL)
     {
@@ -249,33 +181,43 @@ int main(int argc, char* argv[])
         printf("Can't open output file.\n");
     } 
 
-    double **A=new double*[im_height];
+    cufftDoubleComplex **A=new cufftDoubleComplex*[im_height];
     img.convertTo(img,CV_8UC1);
     for (int i=0;i<im_height;i++)
     {
-        A[i] = new double[im_width];
+        A[i] = new cufftDoubleComplex[im_width];
         for (int j=0;j<im_width;j++)
         {
-            A[i][j]=img.at<uchar>(j,i);
+            A[i][j].x=(double)img.at<uchar>(j,i);
+            A[i][j].y=0;
+            //printf("%lf\n",A[i][j].x);
         }
     }
-    double **K=new double*[dimK];
-    for (int i=0;i<dimK;i++)
+    /* - - - Building the Kernel with 0-padding - - - */
+    cufftDoubleComplex **K=new cufftDoubleComplex*[im_height];
+    for (int i=0;i<im_height;i++)
     {
         double numk;
-        K[i]=new double[dimK];
-        for (int j=0;j<dimK;j++)
+        K[i]=new cufftDoubleComplex[im_width];
+        for (int j=0;j<im_width;j++)
         {
-            fscanf(fd2,"%lf",&numk);
-            K[i][j]=numk;
+            if((i >= ((im_height/2) - 2)) && (i <= ((im_height/2) + 2)) && (j >=((im_width/2)-2)) && (j <=((im_width/2)+2))){
+                fscanf(fd2,"%lf",&numk);
+                K[i][j].x=numk;
+                K[i][j].y=0.0;
+                printf("K:%lf\n",K[i][j].x);
+            } else {
+                K[i][j].x=0.0;
+                K[i][j].y=0.0;
+            }
         }
     }
     /* ------------------------------    Memory allocation    --------------------------------- */
-    if(cudaMalloc((void**) &im_d, im_width*im_height*sizeof(double)) != cudaSuccess){
+    if(cudaMalloc((void**) &im_d, im_width*im_height*sizeof(cufftDoubleComplex)) != cudaSuccess){
         cout<<"Error Memory Allocation (line "<<__LINE__<<")"<<endl;
         return 0;
     }
-    if(cudaMalloc((void**) &im_K, dimK*dimK*sizeof(double)) != cudaSuccess){
+    if(cudaMalloc((void**) &im_K, dimK*dimK*sizeof(cufftDoubleComplex)) != cudaSuccess){
         cout<<"Error Memory Allocation (line "<<__LINE__<<")"<<endl;
         return 0;
     }
@@ -284,7 +226,7 @@ int main(int argc, char* argv[])
         cout<<"Error Memory Allocation (line "<<__LINE__<<")"<<endl;
         return 0;
     }
-    if(cudaMalloc((void**) &IK, im_width*im_height*sizeof(cufftDoubleReal)) != cudaSuccess)
+    if(cudaMalloc((void**) &IK, im_width*im_height*sizeof(cufftDoubleComplex)) != cudaSuccess)
     {
         cout<<"Error Memory Allocation (line "<<__LINE__<<")"<<endl;
         return 0;
@@ -294,6 +236,7 @@ int main(int argc, char* argv[])
         cout<<"Error Memory Allocation (line "<<__LINE__<<")"<<endl;
         return 0;
     }
+
     // Creating and starting timer
     sdkCreateTimer(&timer);
     sdkResetTimer(&timer);
@@ -302,27 +245,28 @@ int main(int argc, char* argv[])
     /* --- Copying image and kernel on device --- */
     for(int i=0; i<im_height; ++i)
     {
-        cudaMemcpy2D(im_d + i*im_width, sizeof(double), A[i], sizeof(double), sizeof(double), im_width, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(im_d + i*im_width, sizeof(cufftDoubleComplex), A[i], sizeof(cufftDoubleComplex), sizeof(cufftDoubleComplex), im_width, cudaMemcpyHostToDevice);
     }
-    for(int i=0; i<dimK; ++i)
+    
+    for(int i=0; i<im_height; ++i)
     {
-        cudaMemcpy2D(im_K + i*dimK, sizeof(double), K[i], sizeof(double), sizeof(double), dimK, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(IK + i*im_width, sizeof(cufftDoubleComplex), K[i], sizeof(cufftDoubleComplex), sizeof(cufftDoubleComplex), im_width, cudaMemcpyHostToDevice);
     }
     
     /* Creating plans */
-    cuError = cufftPlan2d(&planD2Z, im_width, im_height, CUFFT_D2Z);
+    cuError = cufftPlan2d(&planZ2Z, im_width, im_height, CUFFT_Z2Z);
     if(cuError != CUFFT_SUCCESS)
     {
         cout<<"Error creating FFT plan (line "<<__LINE__<<")"<<endl;
         return 0;
     }
-    cuError = cufftPlan2d(&plan2D2Z, im_width, im_height, CUFFT_D2Z);
+    cuError = cufftPlan2d(&plan2Z2Z, im_width, im_height, CUFFT_Z2Z);
     if(cuError != CUFFT_SUCCESS)
     {
         cout<<"Error creating FFT plan (line "<<__LINE__<<")"<<endl;
         return 0;
     }
-    cuError = cufftPlan2d(&planZ2D, im_width, im_height, CUFFT_Z2D);
+    cuError = cufftPlan2d(&planIZ2Z, im_width, im_height, CUFFT_Z2Z);
     if(cuError != CUFFT_SUCCESS)
     {
         cout<<"Error creating IFFT plan (line "<<__LINE__<<")"<<endl;
@@ -330,45 +274,43 @@ int main(int argc, char* argv[])
     }
     
     /* - - - Fast Fourier Transform on image - - - */
-    cuError = cufftExecD2Z(planD2Z, (cufftDoubleReal*)im_d, IM);
-    if(cuError != CUFFT_SUCCESS)
-    {
-        cout<<"[HCS] Error "<<cuError<<" during executing CUFFT (line "<<__LINE__<<")"<<endl;
-        reserr = GPU_HCS_ERROR_FFT;
-        return reserr;
-    }
-    kernel_fftshift2D<<<dimGrid, dimBlock>>>(IM, im_height, im_width);
-    zeroPadding<<<dimGrid,dimBlock>>>(im_K, IK, im_width, im_height, dimK,dimK);
-    
-    /* - - - Fast Fourier Transform on kernel - - - */
-    cuError=cufftExecD2Z(plan2D2Z,(cufftDoubleReal*)IK, FK);
+    cuError = cufftExecZ2Z(planZ2Z,im_d, IM, CUFFT_FORWARD);
     if(cuError != CUFFT_SUCCESS)
     {
         cout<<"Error "<<cuError<<" during executing CUFFT (line "<<__LINE__<<")"<<endl;
-        reserr = GPU_HCS_ERROR_FFT;
-        return reserr;
+        return cuError;
+    }
+    kernel_fftshift2D<<<dimGrid, dimBlock>>>(IM, im_height, im_width);
+    
+    /* - - - Fast Fourier Transform on kernel - - - */
+    cuError=cufftExecZ2Z(plan2Z2Z,IK, FK,CUFFT_FORWARD);
+    if(cuError != CUFFT_SUCCESS)
+    {
+        cout<<"Error "<<cuError<<" during executing CUFFT (line "<<__LINE__<<")"<<endl;
+        return cuError;
     }
     kernel_fftshift2D<<<dimGrid, dimBlock>>>(FK, im_height, im_width);
     
     /* Component-wise matrix-mul */
-    prodottoMatriciCompPerCompGPU<<<dimGrid, dimBlock>>> (IM,FK,IM, im_height, im_width);
+    componentwiseMatrixMul<<<dimGrid, dimBlock>>> (IM,FK,IM, im_height, im_width);
     
     /* - - - Executing IFFT and shifting back - - - */
-    kernel_fftshift2D<<<dimGrid, dimBlock>>>(IM, im_height, im_width);
 #ifdef DEBUG
     printf("Shifted Image\n");    
 #endif    
-    cuError=cufftExecZ2D(planZ2D, IM, (cufftDoubleReal*)im_d);
+    kernel_fftshift2D<<<dimGrid, dimBlock>>>(IM, im_height, im_width);
+    
+    cuError=cufftExecZ2Z(planIZ2Z, IM,im_d,CUFFT_INVERSE);
     if(cuError != CUFFT_SUCCESS)
     {
         cout<<"Error "<<cuError<<" during executing CUIFFT (line "<<__LINE__<<")"<<endl;
-        reserr = GPU_HCS_ERROR_FFT;
-        return reserr;
+        return cuError;
     }
+    kernel_fftshift2D<<<dimGrid, dimBlock>>>(im_d, im_height, im_width);
     
     /* - - - Generating output - - - */
-    double *c = (double*) malloc(im_width*im_height*sizeof(double));
-    cudaMemcpy(c, im_d, sizeof(cufftDoubleReal)*im_height*(im_width) , cudaMemcpyDeviceToHost);
+    cufftDoubleComplex *c = (cufftDoubleComplex*)malloc(im_width*im_height*sizeof(cufftDoubleComplex));
+    cudaMemcpy(c, im_d, sizeof(cufftDoubleComplex)*im_height*im_width , cudaMemcpyDeviceToHost);
     
     // Stopping timer and computing elapsed time
     sdkStopTimer(&timer);
@@ -379,26 +321,26 @@ int main(int argc, char* argv[])
 #ifdef DEBUG    
     printf("Generating output. . .\n");
 #endif    
-    long double max = c[0];
+    long double max = c[0].x;
     for (int i = 0; i < im_height; i++)
     {
         for (int j =0 ; j< im_width; j++)
         {
-            fprintf(fd1,"%lf ",c[i*im_width + j]);
-            if(c[i*im_width + j] > max)
-                max = c[i*im_width + j];
+            fprintf(fd1,"%lf ",c[i*im_width + j].x);
+            if(c[i*im_width + j].x > max)
+                max = c[i*im_width + j].x;
         }
         fprintf(fd1,"\n");
     }
     img.convertTo(img,CV_64F);
     for(int i = 0; i < im_height; i++){
         for(int j =0; j < im_width; j++){
-            img.at<double>(j,i) = (double) floor((c[i*im_width + j]/max)*255);
-            //printf("%lf\n",floor((c[i*im_width + j]/max)*255);
+            img.at<double>(j,i) = floor((c[i*im_width + j].x/max)*255);
+            //printf("%d\n",(unsigned)floor((c[i*im_width + j].x/max)*255));
         }
     }
     imwrite("output_image.jpg",img);
-       
+ 
     free(c);
     free(A);
     free(K);
@@ -406,9 +348,9 @@ int main(int argc, char* argv[])
     cudaFree(IM);
     cudaFree(IK);
     cudaFree(FK);
-    cufftDestroy(plan2D2Z);
-    cufftDestroy(planD2Z);
-    cufftDestroy(planZ2D);
+    cufftDestroy(plan2Z2Z);
+    cufftDestroy(planIZ2Z);
+    cufftDestroy(planZ2Z);
     
     return 0;
 }
