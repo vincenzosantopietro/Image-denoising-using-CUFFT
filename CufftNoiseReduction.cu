@@ -161,13 +161,13 @@ int main(int argc, char* argv[])
     printf("Set Device [%d] for Execution\n",maxClockDevice);
 
     dim3 dimBlock(num_threads, num_threads);
-    int nbBlocsW = im_width/num_threads;
+    int nbBlocksW = im_width/num_threads;
     if((im_width%num_threads) != 0)
-        nbBlocsW++;
-    int nbBlocsH = im_height/num_threads;
+        nbBlocksW++;
+    int nbBlocksH = im_height/num_threads;
     if((im_height%num_threads) != 0)
-        nbBlocsH++;
-    dim3 dimGrid(nbBlocsW, nbBlocsH);
+        nbBlocksH++;
+    dim3 dimGrid(nbBlocksW, nbBlocksH);
     
 
     // Opening kernel file and output file
