@@ -205,7 +205,6 @@ int main(int argc, char* argv[])
                 fscanf(fd2,"%lf",&numk);
                 K[i][j].x=numk;
                 K[i][j].y=0.0;
-                printf("K:%lf\n",K[i][j].x);
             } else {
                 K[i][j].x=0.0;
                 K[i][j].y=0.0;
