@@ -31,6 +31,7 @@ You can run the software by typing
 ```sh
 $ ./convolution <num_threads> <output_file_path> <image_path> <kernel_path>
 ```
+
 ### Plugins
 
 | Plugin | README |
@@ -47,17 +48,18 @@ This is still a beta version, developed for academic purposes.
 Want to contribute? Great!
 
 
-
 ### Todos
 
  - Add an input parser 
- - Clean code
 
 License
 ----
 
 GNUv3.0
 
+Credits
+-----
+Image: https://en.wikipedia.org/wiki/Gaussian_noise 
 
 **Free Software, Hell Yeah!**
 
