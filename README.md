@@ -47,7 +47,6 @@ This is still a beta version, developed for academic purposes.
 
 Want to contribute? Great!
 
-
 ### Todos
 
  - Add an input parser 
@@ -55,8 +54,8 @@ Want to contribute? Great!
 License
 ----
 
-GNUv3.0
-If you use this software, please cite http://www.sciencedirect.com/science/article/pii/S1877050917317209
+GNUv3.0 <br />
+If you use this software, please cite: http://www.sciencedirect.com/science/article/pii/S1877050917317209
 
 Credits
 -----
