@@ -56,6 +56,7 @@ License
 ----
 
 GNUv3.0
+If you use this software, please cite http://www.sciencedirect.com/science/article/pii/S1877050917317209
 
 Credits
 -----
